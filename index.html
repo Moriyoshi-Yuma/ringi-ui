@@ -47,7 +47,7 @@
   <div class="chat" id="chatArea" style="display:none">
     <div class="row">
       <b>壁打ち相手：</b>
-      <label><input type="radio" name="m" value="gpt" checked> GPT-5</label>
+      <label><input type="radio" name="m" value="gpt" checked> Grok</label>
       <label><input type="radio" name="m" value="deepseek"> DeepSeek V3.2</label>
     </div>
     <div id="log"></div>
@@ -79,12 +79,15 @@ async function review(){
     const d=await res.json();
     document.getElementById('out-gpt').textContent=d.gpt||'(なし)';
     document.getElementById('out-deepseek').textContent=d.deepseek||'(なし)';
-    // 壁打ちの起点：稟議＋両レビューを履歴に積む
-    history=[{role:'user',content:'# 稟議書\n'+ringi},
+    // 壁打ちの起点：参考ナレッジ＋稟議＋両レビューを履歴に積む（chatでも同じ規程を参照できる）
+    const kn=d.knowledge||'';
+    const userTurn=(kn?('# 参考（社内ナレッジ）\n'+kn+'\n\n'):'')+'# 稟議書\n'+ringi;
+    history=[{role:'user',content:userTurn},
              {role:'assistant',content:'【Grokの所見】\n'+(d.gpt||'')+'\n\n【DeepSeekの所見】\n'+(d.deepseek||'')}];
     document.getElementById('chatArea').style.display='block';
     document.getElementById('log').innerHTML='';
-    setStatus('レビュー完了。下で壁打ちできます。');
+    const srcs=(d.sources||[]).filter(Boolean);
+    setStatus(srcs.length?('レビュー完了。参照ナレッジ: '+srcs.join(' / ')):'レビュー完了。下で壁打ちできます。（ナレッジ未ヒット）');
   }catch(err){setStatus('エラー: '+err);}
 }
 
