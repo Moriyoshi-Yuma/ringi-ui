@@ -27,7 +27,7 @@
 </style>
 </head>
 <body>
-<header>稟議 事前チェック・壁打ちエージェント（Cohere ＋ DeepSeek V3.2）</header>
+<header>稟議 事前チェック・壁打ちエージェント（Grok ＋ DeepSeek V3.2）</header>
 <main>
   <div class="row">
     <input type="file" id="file" accept=".txt,.md">
@@ -40,7 +40,7 @@
   </div>
 
   <div class="cols">
-    <div class="card"><h3>Cohere のレビュー</h3><div class="body" id="out-gpt">—</div></div>
+    <div class="card"><h3>Grok のレビュー</h3><div class="body" id="out-gpt">—</div></div>
     <div class="card"><h3>DeepSeek V3.2 のレビュー</h3><div class="body" id="out-deepseek">—</div></div>
   </div>
 
@@ -81,7 +81,7 @@ async function review(){
     document.getElementById('out-deepseek').textContent=d.deepseek||'(なし)';
     // 壁打ちの起点：稟議＋両レビューを履歴に積む
     history=[{role:'user',content:'# 稟議書\n'+ringi},
-             {role:'assistant',content:'【Cohereの所見】\n'+(d.gpt||'')+'\n\n【DeepSeekの所見】\n'+(d.deepseek||'')}];
+             {role:'assistant',content:'【Grokの所見】\n'+(d.gpt||'')+'\n\n【DeepSeekの所見】\n'+(d.deepseek||'')}];
     document.getElementById('chatArea').style.display='block';
     document.getElementById('log').innerHTML='';
     setStatus('レビュー完了。下で壁打ちできます。');
