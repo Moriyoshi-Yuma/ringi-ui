@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>稟議 事前チェック・壁打ち</title>
+<style>
+  :root{--navy:#15315B;--steel:#33619B;--line:#D8DEE8;--gl:#F4F4EF;--ink:#222}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:var(--ink);background:#fff}
+  header{background:var(--navy);color:#fff;padding:14px 18px;font-weight:700}
+  main{max-width:1100px;margin:0 auto;padding:16px}
+  textarea{width:100%;min-height:120px;padding:10px;border:1px solid #c3ccdb;border-radius:8px;font-size:14px}
+  .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
+  button{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer}
+  button.sec{background:#fff;color:var(--navy);border:1px solid var(--navy)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  .card{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .card h3{margin:0;background:var(--gl);padding:8px 12px;font-size:14px;color:var(--navy)}
+  .card .body{padding:12px;white-space:pre-wrap;font-size:13.5px;min-height:120px}
+  .chat{margin-top:18px;border-top:2px solid var(--navy);padding-top:12px}
+  .msg{margin:8px 0;padding:9px 12px;border-radius:10px;max-width:85%;white-space:pre-wrap;font-size:13.5px}
+  .me{background:#E6EEF8;margin-left:auto}
+  .ai{background:var(--gl)}
+  .muted{color:#888;font-size:12px}
+  @media(max-width:700px){.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>稟議 事前チェック・壁打ちエージェント（Claude ＋ DeepSeek V3.2）</header>
+<main>
+  <div class="row">
+    <input type="file" id="file" accept=".txt,.md">
+    <span class="muted">テキストファイル(.txt/.md)を添付、または下に貼り付け</span>
+  </div>
+  <textarea id="ringi" placeholder="ここに稟議書の本文を貼り付け（または上でファイルを添付）"></textarea>
+  <div class="row">
+    <button onclick="review()">2エージェントでレビュー</button>
+    <span id="status" class="muted"></span>
+  </div>
+
+  <div class="cols">
+    <div class="card"><h3>Claude のレビュー</h3><div class="body" id="out-gpt">—</div></div>
+    <div class="card"><h3>DeepSeek V3.2 のレビュー</h3><div class="body" id="out-deepseek">—</div></div>
+  </div>
+
+  <div class="chat" id="chatArea" style="display:none">
+    <div class="row">
+      <b>壁打ち相手：</b>
+      <label><input type="radio" name="m" value="gpt" checked> GPT-5</label>
+      <label><input type="radio" name="m" value="deepseek"> DeepSeek V3.2</label>
+    </div>
+    <div id="log"></div>
+    <div class="row">
+      <textarea id="msg" style="min-height:60px" placeholder="気になる点を質問して壁打ち（例：背景の定量根拠が弱い気がします）"></textarea>
+    </div>
+    <div class="row"><button onclick="send()">送信</button></div>
+  </div>
+</main>
+
+<script>
+// ← App Service の URL に置き換える（末尾スラッシュなし）
+const BACKEND_URL = "https://app-ringi-api-dygzdcguasayhff2.westcentralus-01.azurewebsites.net/";
+let history = [];
+
+document.getElementById('file').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader(); r.onload=()=>document.getElementById('ringi').value=r.result; r.readAsText(f);
+});
+
+async function review(){
+  const ringi=document.getElementById('ringi').value.trim();
+  if(!ringi){alert('稟議書の本文を入力してください');return;}
+  setStatus('レビュー中…（2モデルへ並列依頼）');
+  document.getElementById('out-gpt').textContent='…';
+  document.getElementById('out-deepseek').textContent='…';
+  try{
+    const res=await fetch(BACKEND_URL+'/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ringi})});
+    const d=await res.json();
+    document.getElementById('out-gpt').textContent=d.gpt||'(なし)';
+    document.getElementById('out-deepseek').textContent=d.deepseek||'(なし)';
+    // 壁打ちの起点：稟議＋両レビューを履歴に積む
+    history=[{role:'user',content:'# 稟議書\n'+ringi},
+             {role:'assistant',content:'【Claudeの所見】\n'+(d.gpt||'')+'\n\n【DeepSeekの所見】\n'+(d.deepseek||'')}];
+    document.getElementById('chatArea').style.display='block';
+    document.getElementById('log').innerHTML='';
+    setStatus('レビュー完了。下で壁打ちできます。');
+  }catch(err){setStatus('エラー: '+err);}
+}
+
+async function send(){
+  const t=document.getElementById('msg').value.trim(); if(!t) return;
+  const model=document.querySelector('input[name=m]:checked').value;
+  addMsg('me',t); history.push({role:'user',content:t}); document.getElementById('msg').value='';
+  setStatus('応答中…');
+  try{
+    const res=await fetch(BACKEND_URL+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,history})});
+    const d=await res.json();
+    addMsg('ai',d.reply||'(なし)'); history.push({role:'assistant',content:d.reply||''}); setStatus('');
+  }catch(err){setStatus('エラー: '+err);}
+}
+function addMsg(cls,text){const div=document.createElement('div');div.className='msg '+cls;div.textContent=text;document.getElementById('log').appendChild(div);div.scrollIntoView();}
+function setStatus(s){document.getElementById('status').textContent=s;}
+</script>
+</body>
+</html>
